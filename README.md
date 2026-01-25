@@ -1,12 +1,14 @@
 # trigger-cli
 
-A command-line tool for [Trigger.dev](https://trigger.dev) - list, search, and run tasks from your terminal.
+An **unofficial** command-line tool for [Trigger.dev](https://trigger.dev) - list, search, and run tasks from your terminal.
+
+> **Note:** This is a community project and is not affiliated with or endorsed by Trigger.dev.
 
 ## Installation
 
 ```bash
 # Clone the repo
-git clone https://github.com/YOUR_USERNAME/trigger-cli.git ~/trigger-cli
+git clone https://github.com/JWPapi/trigger-cli.git ~/trigger-cli
 
 # Add alias to your shell profile (.bashrc, .zshrc, etc.)
 alias trigger='python3 ~/trigger-cli/trigger.py'
