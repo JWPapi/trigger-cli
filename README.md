@@ -39,10 +39,14 @@ trigger list                       Same as above
 trigger list <search>              Search tasks by name
 trigger list --local               Scan ./tasks folder for all task definitions
 trigger schedules                  List scheduled tasks (numbered)
+trigger runs                       List recent runs with run IDs
+trigger runs --active              List only in-progress runs
 trigger run <task_id>              Run a task (asks for confirmation)
 trigger run <task_id> -y           Run without confirmation
 trigger run <task_id> -p <json>    Run with JSON payload
 trigger run <task_id> --open       Open run URL after trigger
+trigger cancel <run_id>            Cancel an in-progress run
+trigger cancel <number>            Cancel run by number from last 'trigger runs'
 trigger <number>                   Run task by number from last list
 trigger -h, --help                 Show this help
 ```
@@ -77,6 +81,21 @@ Trigger 'process-campaigns'? [y/N] y
 
 # Run with payload
 $ trigger run my-task -p '{"userId": "123"}'
+
+# List runs with IDs
+$ trigger runs --active
+In-progress runs:
+  1. process-campaigns ⏳ (abc12345)
+  2. send-notifications ⏳ (def67890)
+
+# Cancel a run by number
+$ trigger cancel 1
+Cancel run 'run_abc12345'? [y/N] y
+✔️ Cancelled run_abc12345
+
+# Cancel by run ID directly
+$ trigger cancel run_abc12345 -y
+✔️ Cancelled run_abc12345
 ```
 
 ## License
