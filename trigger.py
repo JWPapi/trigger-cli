@@ -21,6 +21,7 @@ except ImportError:
 API_KEY = os.environ.get("TRIGGER_SECRET_KEY")
 PROJECT_ID = os.environ.get("TRIGGER_PROJECT_ID")
 BASE_URL = "https://api.trigger.dev/api/v1"
+BASE_URL_V2 = "https://api.trigger.dev/api/v2"
 
 # Cache last listed tasks for quick selection
 CACHE_FILE = os.path.expanduser("~/.trigger_last_tasks.json")
@@ -36,10 +37,14 @@ Usage:
     trigger list <search>              Search tasks by name
     trigger list --local               Scan ./tasks folder for all task definitions
     trigger schedules                  List scheduled tasks (numbered)
+    trigger runs                       List recent runs with run IDs
+    trigger runs --active              List only in-progress runs
     trigger run <task_id>              Run a task (asks for confirmation)
     trigger run <task_id> -y           Run without confirmation
     trigger run <task_id> -p <json>    Run with JSON payload
     trigger run <task_id> --open       Open run URL after trigger
+    trigger cancel <run_id>            Cancel an in-progress run
+    trigger cancel <number>            Cancel run by number from last 'trigger runs'
     trigger <number>                   Run task by number from last list
     trigger -h, --help                 Show this help
 
@@ -189,6 +194,86 @@ def list_schedules():
     return schedules
 
 
+RUNS_CACHE_FILE = os.path.expanduser("~/.trigger_last_runs.json")
+
+
+def list_runs(active_only=False):
+    """List recent runs with run IDs."""
+    response = requests.get(
+        f"{BASE_URL}/runs",
+        headers={"Authorization": f"Bearer {API_KEY}"},
+        params={"page[size]": 50}
+    )
+    response.raise_for_status()
+
+    runs = response.json().get("data", [])
+
+    if active_only:
+        runs = [r for r in runs if r.get("status") not in ("COMPLETED", "FAILED", "CANCELED")]
+
+    # Save for quick selection
+    runs_cache = [{"run_id": r.get("id"), "task_id": r.get("taskIdentifier"), "status": r.get("status")} for r in runs]
+    with open(RUNS_CACHE_FILE, "w") as f:
+        json.dump(runs_cache, f)
+
+    if active_only:
+        print("In-progress runs:")
+    else:
+        print("Recent runs:")
+
+    if not runs:
+        print("  (none found)")
+        return runs
+
+    for i, r in enumerate(runs, 1):
+        run_id = r.get("id", "")
+        task_id = r.get("taskIdentifier", "")
+        status = r.get("status", "")
+
+        if status == "COMPLETED":
+            icon = "✓"
+        elif status in ("FAILED", "CANCELED"):
+            icon = "✗"
+        else:
+            icon = "⏳"
+
+        # Truncate run_id for display (show last 8 chars)
+        short_id = run_id[-8:] if len(run_id) > 8 else run_id
+        print(f"  {i}. {task_id} {icon} ({short_id})")
+
+    return runs
+
+
+def get_cached_run(number):
+    """Get run ID from cache by number."""
+    try:
+        with open(RUNS_CACHE_FILE) as f:
+            runs = json.load(f)
+        return runs[number - 1]["run_id"]
+    except (FileNotFoundError, IndexError, KeyError):
+        return None
+
+
+def cancel_run(run_id, skip_confirm=False):
+    """Cancel an in-progress run."""
+    if not skip_confirm:
+        if not confirm(f"Cancel run '{run_id}'?"):
+            print("Cancelled")
+            return
+
+    response = requests.post(
+        f"{BASE_URL_V2}/runs/{run_id}/cancel",
+        headers={"Authorization": f"Bearer {API_KEY}"}
+    )
+    response.raise_for_status()
+
+    print(f"✔️ Cancelled {run_id}")
+
+    if PROJECT_ID:
+        run_url = f"https://cloud.trigger.dev/projects/v3/{PROJECT_ID}/runs/{run_id}"
+        print(f"   {run_url}")
+
+
 def run_task(task_id, payload=None, auto_open=False, skip_confirm=False):
     """Trigger a task."""
     if not skip_confirm:
@@ -257,6 +342,24 @@ def main():
             list_tasks(search)
     elif args[0] == "schedules":
         list_schedules()
+    elif args[0] == "runs":
+        active_only = "--active" in args
+        list_runs(active_only)
+    elif args[0] == "cancel":
+        if len(args) < 2:
+            print("Usage: trigger cancel <run_id|number>")
+            sys.exit(1)
+
+        target = args[1]
+        if target.isdigit():
+            run_id = get_cached_run(int(target))
+            if not run_id:
+                print("❌ Run 'trigger runs' first")
+                sys.exit(1)
+        else:
+            run_id = target
+
+        cancel_run(run_id, skip_confirm)
     elif args[0] == "run":
         if len(args) < 2:
             print("Usage: trigger run <task_id>")
